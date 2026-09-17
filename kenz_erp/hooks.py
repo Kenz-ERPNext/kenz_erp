@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kenz_erp/css/kenz_erp.css"
-# app_include_js = "/assets/kenz_erp/js/kenz_erp.js"
+app_include_js = "/assets/kenz_erp/js/language.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/kenz_erp/css/kenz_erp.css"
