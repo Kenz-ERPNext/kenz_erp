@@ -1,1 +1,1 @@
-import "./supplier_quick_entry";
+import "./party_quick_entry";

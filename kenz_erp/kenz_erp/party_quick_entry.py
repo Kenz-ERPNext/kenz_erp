@@ -1,6 +1,6 @@
 import frappe
 
-# Supplier quick entry fieldname -> Address fieldname
+# Supplier / Customer quick entry fieldname -> Address fieldname
 QUICK_ENTRY_ADDRESS_FIELDS = {
 	"address_type": "address_type",
 	"address_building_number": "custom_building_number",
@@ -13,7 +13,7 @@ QUICK_ENTRY_ADDRESS_FIELDS = {
 	"address_is_shipping": "is_shipping_address",
 }
 
-# Supplier quick entry fieldname -> Contact fieldname
+# Supplier / Customer quick entry fieldname -> Contact fieldname
 QUICK_ENTRY_CONTACT_FIELDS = {
 	"contact_salutation": "salutation",
 	"contact_middle_name": "middle_name",
@@ -24,13 +24,16 @@ QUICK_ENTRY_CONTACT_FIELDS = {
 }
 
 
+PARTY_DOCTYPES = ("Supplier", "Customer")
+
+
 def stash_quick_entry_fields(doc, method=None):
-	"""Supplier validate: keep the quick entry values for the Address and Contact that
-	ERPNext's make_address / make_contact create in Supplier.on_update."""
+	"""Supplier / Customer validate: keep the quick entry values for the Address and Contact that
+	ERPNext's make_address / make_contact create in the party's on_update."""
 	if not doc.is_new():
 		return
 
-	stash = frappe.flags.setdefault("supplier_quick_entry_fields", {})
+	stash = frappe.flags.setdefault("party_quick_entry_fields", {})
 	for doctype, mapping in (
 		("Address", QUICK_ENTRY_ADDRESS_FIELDS),
 		("Contact", QUICK_ENTRY_CONTACT_FIELDS),
@@ -40,19 +43,19 @@ def stash_quick_entry_fields(doc, method=None):
 			target: doc.get(source) for source, target in mapping.items() if doc.get(source) not in (None, "")
 		}
 		if values:
-			stash[(doctype, doc.name)] = values
+			stash[(doctype, doc.doctype, doc.name)] = values
 
 
 def apply_quick_entry_fields(doc, method=None):
 	"""Address / Contact before_insert: runs before naming, so address_type is also reflected in the name."""
-	stash = frappe.flags.get("supplier_quick_entry_fields")
+	stash = frappe.flags.get("party_quick_entry_fields")
 	if not stash:
 		return
 
 	for link in doc.links:
-		if link.link_doctype != "Supplier":
+		if link.link_doctype not in PARTY_DOCTYPES:
 			continue
-		values = stash.pop((doc.doctype, link.link_name), None)
+		values = stash.pop((doc.doctype, link.link_doctype, link.link_name), None)
 		if not values:
 			continue
 

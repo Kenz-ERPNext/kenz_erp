@@ -147,13 +147,16 @@ app_include_js = ["/assets/kenz_erp/js/language.js", "kenz_erp.bundle.js"]
 
 doc_events = {
 	"Supplier": {
-		"validate": "kenz_erp.kenz_erp.supplier.stash_quick_entry_fields",
+		"validate": "kenz_erp.kenz_erp.party_quick_entry.stash_quick_entry_fields",
+	},
+	"Customer": {
+		"validate": "kenz_erp.kenz_erp.party_quick_entry.stash_quick_entry_fields",
 	},
 	"Address": {
-		"before_insert": "kenz_erp.kenz_erp.supplier.apply_quick_entry_fields",
+		"before_insert": "kenz_erp.kenz_erp.party_quick_entry.apply_quick_entry_fields",
 	},
 	"Contact": {
-		"before_insert": "kenz_erp.kenz_erp.supplier.apply_quick_entry_fields",
+		"before_insert": "kenz_erp.kenz_erp.party_quick_entry.apply_quick_entry_fields",
 	},
 }
 
