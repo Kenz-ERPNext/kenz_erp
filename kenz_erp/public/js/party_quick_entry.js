@@ -23,58 +23,15 @@ $(() => {
 					if (f.fieldname) erpnext_fields[f.fieldname] = f;
 				});
 
-				const section = (label) => ({
+				const section = (label, collapsible = 0) => ({
 					fieldtype: "Section Break",
 					label: __(label),
-					collapsible: 1,
+					collapsible,
 				});
 				const column = () => ({ fieldtype: "Column Break" });
 				const company_only = `eval:doc.${party}_type=='Company'`;
 
 				return [
-					section("Primary Contact Details"),
-					{
-						label: __("Salutation"),
-						fieldname: "contact_salutation",
-						fieldtype: "Link",
-						options: "Salutation",
-						depends_on: company_only,
-					},
-					erpnext_fields.map_to_first_name,
-					{
-						label: __("Middle Name"),
-						fieldname: "contact_middle_name",
-						fieldtype: "Data",
-						depends_on: company_only,
-					},
-					erpnext_fields.map_to_last_name,
-					column(),
-					erpnext_fields.email_address,
-					erpnext_fields.mobile_number,
-					{
-						label: __("Phone"),
-						fieldname: "contact_phone",
-						fieldtype: "Data",
-						options: "Phone",
-					},
-					column(),
-					{
-						label: __("Designation"),
-						fieldname: "contact_designation",
-						fieldtype: "Data",
-					},
-					{
-						label: __("Department"),
-						fieldname: "contact_department",
-						fieldtype: "Data",
-					},
-					{
-						label: __("Gender"),
-						fieldname: "contact_gender",
-						fieldtype: "Link",
-						options: "Gender",
-					},
-
 					section("Primary Address Details"),
 					{
 						label: __("Address Type"),
@@ -148,6 +105,49 @@ $(() => {
 						fieldname: "address_is_shipping",
 						fieldtype: "Check",
 						default: 1,
+					},
+
+					section("Primary Contact Details", 1),
+					{
+						label: __("Salutation"),
+						fieldname: "contact_salutation",
+						fieldtype: "Link",
+						options: "Salutation",
+						depends_on: company_only,
+					},
+					erpnext_fields.map_to_first_name,
+					{
+						label: __("Middle Name"),
+						fieldname: "contact_middle_name",
+						fieldtype: "Data",
+						depends_on: company_only,
+					},
+					erpnext_fields.map_to_last_name,
+					column(),
+					erpnext_fields.email_address,
+					erpnext_fields.mobile_number,
+					{
+						label: __("Phone"),
+						fieldname: "contact_phone",
+						fieldtype: "Data",
+						options: "Phone",
+					},
+					column(),
+					{
+						label: __("Designation"),
+						fieldname: "contact_designation",
+						fieldtype: "Data",
+					},
+					{
+						label: __("Department"),
+						fieldname: "contact_department",
+						fieldtype: "Data",
+					},
+					{
+						label: __("Gender"),
+						fieldname: "contact_gender",
+						fieldtype: "Link",
+						options: "Gender",
 					},
 					erpnext_fields.customer_pos_id,
 				];
