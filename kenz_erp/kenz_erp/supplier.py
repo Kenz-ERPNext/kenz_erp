@@ -3,10 +3,14 @@ import frappe
 # Supplier quick entry fieldname -> Address fieldname
 QUICK_ENTRY_ADDRESS_FIELDS = {
 	"address_type": "address_type",
+	"address_building_number": "custom_building_number",
+	"address_area": "custom_area",
 	"address_county": "county",
 	"address_tax_category": "tax_category",
 	"address_phone": "phone",
 	"address_email": "email_id",
+	"address_is_primary": "is_primary_address",
+	"address_is_shipping": "is_shipping_address",
 }
 
 # Supplier quick entry fieldname -> Contact fieldname
@@ -31,7 +35,10 @@ def stash_quick_entry_fields(doc, method=None):
 		("Address", QUICK_ENTRY_ADDRESS_FIELDS),
 		("Contact", QUICK_ENTRY_CONTACT_FIELDS),
 	):
-		values = {target: doc.get(source) for source, target in mapping.items() if doc.get(source)}
+		# keep 0 from unticked checkboxes, skip empty fields
+		values = {
+			target: doc.get(source) for source, target in mapping.items() if doc.get(source) not in (None, "")
+		}
 		if values:
 			stash[(doctype, doc.name)] = values
 
