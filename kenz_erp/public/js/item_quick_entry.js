@@ -39,6 +39,14 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 			"opening_stock",
 			"valuation_rate",
 
+			section("Units of Measure"),
+			{
+				// a Table field's grid only shows inline columns when it can look them up via
+				// a form (this.frm) - a bare Dialog has none, so they have to be given directly
+				...df["uoms"],
+				fields: frappe.get_meta("UOM Conversion Detail").fields,
+			},
+
 			section("Price List"),
 			{
 				fieldname: "quick_entry_prices_html",
@@ -86,17 +94,28 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 		this.dialog.doc.taxes = template ? [{ item_tax_template: template }] : [];
 		delete this.dialog.doc.quick_entry_item_tax_template;
 
-		const price_fields = this.price_editor.get_item_doc_fields();
-		const barcode_fields = this.barcode_editor.get_item_doc_fields();
-		const uoms = {};
-		[...price_fields.uoms, ...barcode_fields.uoms].forEach((u) => (uoms[u.uom] = u.conversion_factor));
+		// wait for the existing Price List / Barcode rows to finish loading (edit mode) before
+		// reading them - saving while that fetch is still in flight would read empty lists and
+		// wipe out the item's existing rows instead of keeping them
+		return Promise.all([this.price_editor.ready, this.barcode_editor.ready]).then(() => {
+			const price_fields = this.price_editor.get_item_doc_fields();
+			const barcode_fields = this.barcode_editor.get_item_doc_fields();
+			// UOM conversions can come from the "Units of Measure" grid itself, from a Price
+			// List row, or from a Barcode row - merge all three, the grid's own rows winning
+			// on conflict since the user put them there directly.
+			const uoms = {};
+			[...price_fields.uoms, ...barcode_fields.uoms].forEach(
+				(u) => (uoms[u.uom] = u.conversion_factor)
+			);
+			(this.dialog.doc.uoms || []).forEach((u) => (uoms[u.uom] = u.conversion_factor));
 
-		this.dialog.doc.uoms = Object.entries(uoms).map(([uom, conversion_factor]) => ({
-			uom,
-			conversion_factor,
-		}));
-		this.dialog.doc.barcodes = barcode_fields.barcodes;
-		this.dialog.doc.quick_entry_prices = price_fields.quick_entry_prices;
-		return super.insert();
+			this.dialog.doc.uoms = Object.entries(uoms).map(([uom, conversion_factor]) => ({
+				uom,
+				conversion_factor,
+			}));
+			this.dialog.doc.barcodes = barcode_fields.barcodes;
+			this.dialog.doc.quick_entry_prices = price_fields.quick_entry_prices;
+			return super.insert();
+		});
 	}
 };

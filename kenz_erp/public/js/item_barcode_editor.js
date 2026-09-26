@@ -37,6 +37,9 @@ frappe.kenz_erp.ItemBarcodeEditor = class ItemBarcodeEditor {
 			.appendTo(this.wrapper);
 		this.list_wrapper = $('<div class="kenz-barcode-list mt-2"></div>').appendTo(this.wrapper);
 		this.render();
+		// resolves once there is nothing left to load - kept for symmetry with ItemPriceEditor,
+		// whose own get_item_doc_fields() must not run before ITS load finishes (see its .ready).
+		this.ready = Promise.resolve();
 	}
 
 	load_from_item(item_doc) {
@@ -53,6 +56,7 @@ frappe.kenz_erp.ItemBarcodeEditor = class ItemBarcodeEditor {
 			};
 		});
 		this.render();
+		return this.ready;
 	}
 
 	edit_barcode(idx) {

@@ -14,11 +14,14 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 
 	make(wrapper) {
 		this.wrapper = $(wrapper).empty();
-		$(`<button class="btn btn-xs btn-default kenz-add-price">${__("Add Price")}</button>`)
+		this.add_button = $(`<button class="btn btn-xs btn-default kenz-add-price">${__("Add Price")}</button>`)
 			.on("click", () => this.edit_price())
 			.appendTo(this.wrapper);
 		this.list_wrapper = $('<div class="kenz-price-list mt-2"></div>').appendTo(this.wrapper);
 		this.render();
+		// resolves once there is nothing left to load - get_item_doc_fields() must not run before
+		// this, or it would save an empty/partial list and wipe out the item's existing rows
+		this.ready = Promise.resolve();
 	}
 
 	load_from_item(item_doc) {
@@ -26,7 +29,8 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 		const conversion_by_uom = {};
 		(item_doc.uoms || []).forEach((u) => (conversion_by_uom[u.uom] = u.conversion_factor));
 
-		return frappe.db
+		this.add_button.prop("disabled", true);
+		this.ready = frappe.db
 			.get_list("Item Price", {
 				filters: { item_code: item_doc.name },
 				fields: ["uom", "price_list", "price_list_rate"],
@@ -43,7 +47,9 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 					};
 				});
 				this.render();
-			});
+			})
+			.finally(() => this.add_button.prop("disabled", false));
+		return this.ready;
 	}
 
 	edit_price(idx) {
