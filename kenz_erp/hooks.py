@@ -159,7 +159,7 @@ doc_events = {
 		"before_insert": "kenz_erp.kenz_erp.party_quick_entry.apply_quick_entry_fields",
 	},
 	"Item": {
-		"after_insert": "kenz_erp.kenz_erp.item_quick_entry.add_buying_price",
+		"after_insert": "kenz_erp.kenz_erp.item_quick_entry.add_price_list_rates",
 	},
 }
 
