@@ -126,17 +126,24 @@ function mount_kenz_item_price_editor(frm, cdt, cdn) {
 	frappe.db.get_doc("Item", row.item_code).then((item_doc) => {
 		if (price_section.data("item_code") !== item_doc.name) return; // row moved on before the fetch resolved
 
+		// looks up the conversion factor for a UOM already added to the Units of Measure list
+		const get_conversion_factor = (uom) => {
+			const row = uom_editor.uoms.find((u) => u.uom === uom);
+			return row && row.conversion_factor;
+		};
+
 		const uom_editor = new frappe.kenz_erp.ItemUomEditor({
 			get_stock_uom: () => item_doc.stock_uom,
 			on_change: () => save_kenz_item(item_doc, uom_editor, price_editor, barcode_editor),
 		});
 		const price_editor = new frappe.kenz_erp.ItemPriceEditor({
 			get_stock_uom: () => item_doc.stock_uom,
-			get_item_code: () => item_doc.name,
+			get_conversion_factor,
 			on_change: () => save_kenz_item(item_doc, uom_editor, price_editor, barcode_editor),
 		});
 		const barcode_editor = new frappe.kenz_erp.ItemBarcodeEditor({
 			get_stock_uom: () => item_doc.stock_uom,
+			get_conversion_factor,
 			on_change: () => save_kenz_item(item_doc, uom_editor, price_editor, barcode_editor),
 		});
 		uom_editor.make(uom_section.body);

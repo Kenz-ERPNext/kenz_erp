@@ -5,9 +5,12 @@ frappe.provide("frappe.kenz_erp");
 // (item_child_table_price_editor.js), so editing an item's prices looks and behaves the same
 // everywhere. Barcodes are a separate list - see item_barcode_editor.js.
 frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
-	constructor({ get_stock_uom, get_item_code, on_change }) {
+	constructor({ get_stock_uom, get_conversion_factor, on_change }) {
 		this.get_stock_uom = get_stock_uom;
-		this.get_item_code = get_item_code;
+		// looks up the conversion factor already set for a UOM in the Units of Measure list -
+		// there's no Conversion Factor field here, a UOM other than the stock one has to be
+		// added there first.
+		this.get_conversion_factor = get_conversion_factor;
 		this.on_change = on_change || (() => {});
 		this.prices = [];
 	}
@@ -15,9 +18,13 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 	make(wrapper) {
 		this.wrapper = $(wrapper).empty();
 		this.add_button = $(`<button class="btn btn-xs btn-default kenz-add-price">${__("Add Price")}</button>`)
-			.on("click", () => this.edit_price())
+			.on("click", () => {
+				this.editing_idx = "new";
+				this.render();
+			})
 			.appendTo(this.wrapper);
 		this.list_wrapper = $('<div class="kenz-price-list mt-2"></div>').appendTo(this.wrapper);
+		this.editing_idx = null; // null = none, "new", or an index into this.prices
 		this.render();
 		// resolves once there is nothing left to load - get_item_doc_fields() must not run before
 		// this, or it would save an empty/partial list and wipe out the item's existing rows
@@ -52,92 +59,76 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 		return this.ready;
 	}
 
-	edit_price(idx) {
-		const row = idx === undefined ? {} : this.prices[idx];
-		const stock_uom = this.get_stock_uom();
-		const price_dialog = new frappe.ui.Dialog({
-			title: idx === undefined ? __("Add Price") : __("Edit Price"),
-			fields: [
-				{
-					label: __("Item Code"),
-					fieldname: "item_code",
-					fieldtype: "Data",
-					read_only: 1,
-					default: this.get_item_code(),
-				},
-				{ fieldname: "stock_uom", fieldtype: "Data", hidden: 1, default: stock_uom },
-				{
-					label: __("UOM"),
-					fieldname: "uom",
-					fieldtype: "Link",
-					options: "UOM",
-					reqd: 1,
-					default: row.uom || stock_uom,
-				},
-				{
-					label: __("Conversion Factor"),
-					fieldname: "conversion_factor",
-					fieldtype: "Float",
-					description: __("1 UOM = ? {0}", [stock_uom]),
-					depends_on: "eval:doc.uom && doc.uom != doc.stock_uom",
-					mandatory_depends_on: "eval:doc.uom && doc.uom != doc.stock_uom",
-					default: row.conversion_factor,
-				},
-				{
-					label: __("Price List"),
-					fieldname: "price_list",
-					fieldtype: "Link",
-					options: "Price List",
-					reqd: 1,
-					get_query: () => ({ filters: { enabled: 1 } }),
-					default: row.price_list,
-				},
-				{
-					label: __("Rate"),
-					fieldname: "rate",
-					fieldtype: "Currency",
-					reqd: 1,
-					default: row.rate,
-				},
-			],
-			primary_action_label: idx === undefined ? __("Add") : __("Update"),
-			primary_action: (values) => {
-				const price = {
-					uom: values.uom,
-					conversion_factor: values.uom === stock_uom ? 1 : values.conversion_factor,
-					price_list: values.price_list,
-					rate: values.rate,
-				};
-				const others = this.prices.filter((p, i) => i !== idx);
-				if (others.some((p) => p.uom === price.uom && p.price_list === price.price_list)) {
-					frappe.throw(
-						__("{0} price for {1} is already added", [price.price_list, price.uom])
-					);
-				}
-				if (
-					others.some(
-						(p) => p.uom === price.uom && p.conversion_factor !== price.conversion_factor
-					)
-				) {
-					frappe.throw(
-						__("UOM {0} is already added with a different conversion factor", [price.uom])
-					);
-				}
-
-				if (idx === undefined) this.prices.push(price);
-				else this.prices[idx] = price;
-				this.render();
-				this.on_change(this.prices);
-				price_dialog.hide();
+	get_fields() {
+		return [
+			{ fieldname: "stock_uom", fieldtype: "Data", hidden: 1, default: this.get_stock_uom() },
+			{ label: __("UOM"), fieldname: "uom", fieldtype: "Link", options: "UOM", reqd: 1 },
+			{
+				label: __("Price List"),
+				fieldname: "price_list",
+				fieldtype: "Link",
+				options: "Price List",
+				reqd: 1,
+				get_query: () => ({ filters: { enabled: 1 } }),
 			},
-		});
-		price_dialog.show();
+			{ label: __("Rate"), fieldname: "rate", fieldtype: "Currency", reqd: 1 },
+		];
+	}
+
+	save_row(values, idx) {
+		const stock_uom = this.get_stock_uom();
+		const conversion_factor = values.uom === stock_uom ? 1 : this.get_conversion_factor(values.uom);
+		if (!conversion_factor) {
+			frappe.throw(__("Add {0} to Units of Measure first", [values.uom]));
+		}
+		const price = {
+			uom: values.uom,
+			conversion_factor,
+			price_list: values.price_list,
+			rate: values.rate,
+		};
+		const others = this.prices.filter((p, i) => i !== idx);
+		if (others.some((p) => p.uom === price.uom && p.price_list === price.price_list)) {
+			frappe.throw(__("{0} price for {1} is already added", [price.price_list, price.uom]));
+		}
+		if (others.some((p) => p.uom === price.uom && p.conversion_factor !== price.conversion_factor)) {
+			frappe.throw(__("UOM {0} is already added with a different conversion factor", [price.uom]));
+		}
+
+		if (idx === "new") this.prices.push(price);
+		else this.prices[idx] = price;
+		this.editing_idx = null;
+		this.render();
+		this.on_change(this.prices);
+	}
+
+	render_inline_form(idx) {
+		const row = idx === "new" ? { uom: this.get_stock_uom() } : this.prices[idx];
+		new frappe.kenz_erp.InlineRowForm({
+			fields: this.get_fields(),
+			values: row,
+			on_save: (values) => this.save_row(values, idx),
+			on_cancel: () => {
+				this.editing_idx = null;
+				this.render();
+			},
+		}).make(this.list_wrapper);
 	}
 
 	render() {
 		if (!this.list_wrapper) return;
 		this.list_wrapper.empty();
-		const cards = this.prices.map((p, idx) =>
+		this.add_button.prop("disabled", this.editing_idx !== null);
+
+		if (this.editing_idx === "new") {
+			this.render_inline_form("new");
+		}
+
+		this.prices.forEach((p, idx) => {
+			if (this.editing_idx === idx) {
+				this.render_inline_form(idx);
+				return;
+			}
 			$(`<div class="border rounded p-2 mb-2 d-flex justify-content-between align-items-center">
 				<div>
 					<div class="bold">${frappe.utils.escape_html(p.price_list)}</div>
@@ -155,14 +146,17 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 					)}</button>
 				</div>
 			</div>`)
-				.on("click", "[data-action=edit]", () => this.edit_price(idx))
+				.on("click", "[data-action=edit]", () => {
+					this.editing_idx = idx;
+					this.render();
+				})
 				.on("click", "[data-action=delete]", () => {
 					this.prices.splice(idx, 1);
 					this.render();
 					this.on_change(this.prices);
 				})
-		);
-		this.list_wrapper.append(cards);
+				.appendTo(this.list_wrapper);
+		});
 	}
 
 	get_item_doc_fields() {

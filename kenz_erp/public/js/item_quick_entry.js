@@ -69,14 +69,37 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 		this.mandatory = layout.map((f) => (typeof f === "string" ? df[f] : f)).filter(Boolean);
 		super.render_dialog();
 
+		// a new Item always ends up with its stock UOM as a Units of Measure row (ERPNext adds it
+		// on save if it's missing) - show that row from the start instead of an empty grid. A
+		// Table field in a bare Dialog (no frm) keeps its rows on the field itself (df.data), not
+		// on doc.uoms - that's only synced from df.data when the dialog's values are read on
+		// save - so the row has to be added the same way the grid's own "Add Row" button does it.
+		const uom_grid = this.dialog.fields_dict.uoms.grid;
+		if (this.doc.__islocal && !uom_grid.get_data().length) {
+			const stock_uom = this.dialog.get_value("stock_uom");
+			if (stock_uom) {
+				uom_grid.add_new_row(null, null, false);
+				const row = uom_grid.get_data().slice(-1)[0];
+				Object.assign(row, { uom: stock_uom, conversion_factor: 1 });
+				uom_grid.refresh();
+			}
+		}
+
+		// looks up the conversion factor for a UOM already added to the Units of Measure grid above
+		const get_conversion_factor = (uom) => {
+			const row = (this.dialog.doc.uoms || []).find((u) => u.uom === uom);
+			return row && row.conversion_factor;
+		};
+
 		this.price_editor = new frappe.kenz_erp.ItemPriceEditor({
 			get_stock_uom: () => this.dialog.get_value("stock_uom"),
-			get_item_code: () => this.dialog.get_value("item_code"),
+			get_conversion_factor,
 		});
 		this.price_editor.make(this.dialog.fields_dict.quick_entry_prices_html.wrapper);
 
 		this.barcode_editor = new frappe.kenz_erp.ItemBarcodeEditor({
 			get_stock_uom: () => this.dialog.get_value("stock_uom"),
+			get_conversion_factor,
 		});
 		this.barcode_editor.make(this.dialog.fields_dict.quick_entry_barcodes_html.wrapper);
 
