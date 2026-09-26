@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kenz_erp/css/kenz_erp.css"
-app_include_js = "/assets/kenz_erp/js/language.js"
+app_include_js = ["/assets/kenz_erp/js/language.js", "kenz_erp.bundle.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/kenz_erp/css/kenz_erp.css"
@@ -144,6 +144,24 @@ app_include_js = "/assets/kenz_erp/js/language.js"
 # 		"on_trash": "method"
 # 	}
 # }
+
+doc_events = {
+	"Supplier": {
+		"validate": "kenz_erp.kenz_erp.party_quick_entry.stash_quick_entry_fields",
+	},
+	"Customer": {
+		"validate": "kenz_erp.kenz_erp.party_quick_entry.stash_quick_entry_fields",
+	},
+	"Address": {
+		"before_insert": "kenz_erp.kenz_erp.party_quick_entry.apply_quick_entry_fields",
+	},
+	"Contact": {
+		"before_insert": "kenz_erp.kenz_erp.party_quick_entry.apply_quick_entry_fields",
+	},
+	"Item": {
+		"on_update": "kenz_erp.kenz_erp.item_quick_entry.sync_price_list_rates",
+	},
+}
 
 # Scheduled Tasks
 # ---------------
