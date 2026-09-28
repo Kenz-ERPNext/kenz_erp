@@ -18,10 +18,14 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 			collapsible,
 		});
 		const column = () => ({ fieldtype: "Column Break" });
+		// shown only when another installed app (e.g. kenz_trading) has actually put the field on
+		// Item - reuses that real field directly, no kenz_erp-owned duplicate or mapping needed
+		const arabic_name_field = df["custom_item_name_in_arabic"] ? "custom_item_name_in_arabic" : null;
 		const layout = [
 			section(),
 			"item_code",
 			"item_name",
+			arabic_name_field,
 			{
 				label: __("Item Tax Template"),
 				fieldname: "quick_entry_item_tax_template",
