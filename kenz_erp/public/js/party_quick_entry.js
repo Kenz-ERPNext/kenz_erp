@@ -9,12 +9,118 @@ $(() => {
 	const make_party_quick_entry_form = (party) =>
 		class extends frappe.ui.form.ContactAddressQuickEntryForm {
 			render_dialog() {
+				// Arabic name / VAT registration / commercial registration - shown only when
+				// another installed app (kenz_trading, ksa_compliance, ...) has actually put the
+				// field on this doctype. Reuses that real field directly - filling it in here
+				// saves straight onto it, no kenz_erp-owned duplicate or mapping needed. Some of
+				// these are already reqd/allow_in_quick_entry on their own (e.g. kenz_trading sets
+				// that up for Customer), which puts them in this.mandatory a second time wherever
+				// the base class placed them - drop that copy first so they only show up once, at
+				// the position chosen below.
+				const target_fieldnames = [
+					`custom_${party}_name_arabic`,
+					"custom_vat_registration_number",
+					"custom_cr_no",
+				];
+				// Supplier has no custom_vat_registration_number to auto-fill it from (see
+				// insert() below), so it needs its own Tax ID field instead. Customer already
+				// gets tax_id set from the VAT field on save, so showing it there too would just
+				// be confusing (it'd silently get overwritten).
+				if (party === "supplier") target_fieldnames.push("tax_id");
+				this.mandatory = this.mandatory.filter((f) => !target_fieldnames.includes(f.fieldname));
+
 				// Name | Type side by side
 				const name_idx = this.mandatory.findIndex((f) => f.fieldname === `${party}_name`);
 				if (name_idx !== -1) {
 					this.mandatory.splice(name_idx + 1, 0, { fieldtype: "Column Break" });
 				}
+
+				const df = {};
+				this.meta.fields.forEach((f) => (df[f.fieldname] = f));
+				const arabic_name_fieldname = `custom_${party}_name_arabic`;
+				const extra_fields = target_fieldnames.map((fieldname) => df[fieldname]).filter(Boolean);
+				if (extra_fields.length) {
+					const type_idx = this.mandatory.findIndex((f) => f.fieldname === `${party}_type`);
+					this.mandatory.splice(type_idx + 1, 0, ...extra_fields);
+				}
+
 				super.render_dialog();
+
+				// for a real docfield (like this one), the Dialog builds its control from the
+				// doctype's own canonical field definition rather than the copy handed to it
+				// above, so the reqd:0 on that copy never took effect - drop it on the actual
+				// rendered control and refresh it so the label's "required" star goes away too.
+				const arabic_field = this.dialog.fields_dict[arabic_name_fieldname];
+				if (arabic_field) {
+					arabic_field.df.reqd = 0;
+					arabic_field.refresh();
+				}
+			}
+
+			insert() {
+				const additional_ids_df = this.meta.fields.find(
+					(f) => f.fieldname === "custom_additional_ids"
+				);
+				if (additional_ids_df) {
+					this.dialog.doc.custom_additional_ids = this.dialog.doc.custom_additional_ids || [];
+
+					// ksa_compliance's own customer.js fills this table with one blank row per ID
+					// type the first time it sees it empty on form refresh - but that refresh never
+					// fires here (Quick Entry is a bare Dialog, not a real form), so a customer
+					// created here would otherwise reach the database with the table still empty.
+					// The very next time anyone opens it as a real form, that handler runs for the
+					// first time and dirties the page via frm.set_value(), showing "Not Saved" on a
+					// record nobody actually changed. Filling the same rows here, up front, avoids
+					// that surprise - it's just what the full form would have saved anyway.
+					if (!this.dialog.doc.custom_additional_ids.length) {
+						[
+							["Tax Identification Number", "TIN"],
+							["Commercial Registration Number", "CRN"],
+							["MOMRAH License", "MOM"],
+							["MHRSD License", "MLS"],
+							["700 Number", "700"],
+							["MISA License", "SAG"],
+							["National ID", "NAT"],
+							["GCC ID", "GCC"],
+							["Iqama", "IQA"],
+							["Passport ID", "PAS"],
+							["Other ID", "OTH"],
+						].forEach(([type_name, type_code]) => {
+							const row = frappe.model.add_child(
+								this.dialog.doc,
+								additional_ids_df.options,
+								"custom_additional_ids"
+							);
+							Object.assign(row, { type_name, type_code });
+						});
+					}
+				}
+
+				// same sync kenz_trading's Customer form does on the custom_vat_registration_number
+				// field: mirror it onto the standard tax_id field, and into the "Additional IDs" TIN
+				// row (if that child table is present on this doctype too).
+				const vat = this.dialog.get_value("custom_vat_registration_number");
+				if (vat) {
+					this.dialog.doc.tax_id = vat;
+
+					if (additional_ids_df) {
+						let row = this.dialog.doc.custom_additional_ids.find(
+							(r) => r.type_code === "TIN"
+						);
+						if (!row) {
+							row = frappe.model.add_child(
+								this.dialog.doc,
+								additional_ids_df.options,
+								"custom_additional_ids"
+							);
+							row.type_name = "Tax Identification Number";
+							row.type_code = "TIN";
+						}
+						row.value = vat;
+					}
+				}
+
+				return super.insert();
 			}
 
 			get_variant_fields() {
@@ -76,12 +182,6 @@ $(() => {
 					erpnext_fields.pincode,
 					erpnext_fields.country,
 					column(),
-					{
-						label: __("Tax Category"),
-						fieldname: "address_tax_category",
-						fieldtype: "Link",
-						options: "Tax Category",
-					},
 					{
 						label: __("Phone"),
 						fieldname: "address_phone",
