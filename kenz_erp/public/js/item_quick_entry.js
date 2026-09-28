@@ -39,18 +39,27 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 		// shown only when another installed app (e.g. kenz_trading) has actually put the field on
 		// Item - reuses that real field directly, no kenz_erp-owned duplicate or mapping needed
 		const arabic_name_field = df["custom_item_name_in_arabic"] ? "custom_item_name_in_arabic" : null;
+		// ksa_vat's own "Tax Template" is a bundle of one or more Item Tax Template rows (its
+		// on_update hook expands it into the "taxes" table itself, see insert() below) - a strict
+		// superset of what the ad-hoc field further down does (pick exactly one Item Tax Template,
+		// added as a single row). Showing both would mean filling in tax info twice for the same
+		// purpose, so when ksa_vat is installed its field replaces the ad-hoc one instead of
+		// sitting alongside it.
+		this.uses_ksa_vat_tax_template = !!df["custom_item_tax_template"];
 		const layout = [
 			section(),
 			"item_code",
 			"item_name",
 			arabic_name_field,
-			{
-				label: __("Item Tax Template"),
-				fieldname: "quick_entry_item_tax_template",
-				fieldtype: "Link",
-				options: "Item Tax Template",
-				reqd: 1,
-			},
+			this.uses_ksa_vat_tax_template
+				? "custom_item_tax_template"
+				: {
+						label: __("Item Tax Template"),
+						fieldname: "quick_entry_item_tax_template",
+						fieldtype: "Link",
+						options: "Item Tax Template",
+						reqd: 1,
+					},
 			column(),
 			"item_group",
 			"stock_uom",
@@ -81,10 +90,13 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 				fieldtype: "HTML",
 			},
 		];
-		// dedupe by both fieldname and label: a customization on some other installed app can mark
-		// its own, differently-named field as mandatory/allow_in_quick_entry (e.g. its own "Item
-		// Tax Template" link) - fieldname alone wouldn't catch that as a duplicate of the one this
-		// layout already defines above, but the visible label repeating would.
+		// dedupe by fieldname only - a genuinely different field from another app's customization
+		// (a different fieldname) still has to show even if its label happens to collide with one
+		// already placed above, so it doesn't end up mandatory-but-invisible. e.g. ksa_vat adds its
+		// own "custom_item_tax_template" - a Link to ITS OWN "Tax Template" doctype, unrelated to
+		// the ad-hoc field below (which maps to the ERPNext "Item Tax Template" child table) - that
+		// just happens to carry the exact same label "Item Tax Template". Relabel the collision for
+		// disambiguation instead of dropping it.
 		const used = new Set(
 			layout
 				.filter(Boolean)
@@ -99,14 +111,32 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 		);
 
 		// other mandatory / quick entry fields (e.g. from customizations) go at the end of the first section
-		const others = this.mandatory.filter(
-			(f) => f.fieldname && !used.has(f.fieldname) && !(f.label && used_labels.has(f.label))
-		);
+		const relabeled = {};
+		const others = this.mandatory
+			.filter((f) => f.fieldname && !used.has(f.fieldname))
+			.map((f) => {
+				if (!f.label || !used_labels.has(f.label)) return f;
+				const label = `${f.label} (${f.module || f.fieldname})`;
+				relabeled[f.fieldname] = label;
+				return { ...f, label };
+			});
 		const first_section_end = layout.indexOf("valuation_rate") + 1;
-		layout.splice(first_section_end, 0, ...others.map((f) => f.fieldname));
+		layout.splice(first_section_end, 0, ...others);
 
 		this.mandatory = layout.map((f) => (typeof f === "string" ? df[f] : f)).filter(Boolean);
 		super.render_dialog();
+
+		// a relabel above only takes effect for an ad-hoc field like the ones already in layout -
+		// for a real docfield (like ksa_vat's custom_item_tax_template), the Dialog builds its
+		// control from Frappe's own canonical field definition rather than the copy handed to it,
+		// so the override never took effect on the rendered control; fix it up directly instead.
+		Object.entries(relabeled).forEach(([fieldname, label]) => {
+			const field = this.dialog.fields_dict[fieldname];
+			if (field) {
+				field.df.label = label;
+				field.refresh();
+			}
+		});
 
 		// a new Item always ends up with its stock UOM as a Units of Measure row (ERPNext adds it
 		// on save if it's missing) - show that row from the start instead of an empty grid. A
@@ -158,16 +188,19 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 			const row = uom_grid.get_data().find((u) => u.uom === uom);
 			return row && row.conversion_factor;
 		};
+		const get_uom_options = () => uom_grid.get_data().map((u) => u.uom).filter(Boolean);
 
 		this.price_editor = new frappe.kenz_erp.ItemPriceEditor({
 			get_stock_uom: () => this.dialog.get_value("stock_uom"),
 			get_conversion_factor,
+			get_uom_options,
 		});
 		this.price_editor.make(this.dialog.fields_dict.quick_entry_prices_html.wrapper);
 
 		this.barcode_editor = new frappe.kenz_erp.ItemBarcodeEditor({
 			get_stock_uom: () => this.dialog.get_value("stock_uom"),
 			get_conversion_factor,
+			get_uom_options,
 		});
 		this.barcode_editor.make(this.dialog.fields_dict.quick_entry_barcodes_html.wrapper);
 
@@ -180,10 +213,15 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends (
 	}
 
 	insert() {
-		// Item Tax Template is a child table on Item, add the selected template as its row
-		const template = this.dialog.get_value("quick_entry_item_tax_template");
-		delete this.dialog.doc.quick_entry_item_tax_template;
-		set_child_table(this.dialog.doc, "taxes", template ? [{ item_tax_template: template }] : []);
+		if (this.uses_ksa_vat_tax_template) {
+			// custom_item_tax_template is a real field, saved as part of the doc as-is; ksa_vat's
+			// own on_update hook populates "taxes" from it server-side after insert.
+		} else {
+			// Item Tax Template is a child table on Item, add the selected template as its row
+			const template = this.dialog.get_value("quick_entry_item_tax_template");
+			delete this.dialog.doc.quick_entry_item_tax_template;
+			set_child_table(this.dialog.doc, "taxes", template ? [{ item_tax_template: template }] : []);
+		}
 
 		// wait for the existing Price List / Barcode rows to finish loading (edit mode) before
 		// reading them - saving while that fetch is still in flight would read empty lists and

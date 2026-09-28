@@ -5,12 +5,16 @@ frappe.provide("frappe.kenz_erp");
 // (item_child_table_price_editor.js), so editing an item's prices looks and behaves the same
 // everywhere. Barcodes are a separate list - see item_barcode_editor.js.
 frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
-	constructor({ get_stock_uom, get_conversion_factor, on_change }) {
+	constructor({ get_stock_uom, get_conversion_factor, get_uom_options, on_change }) {
 		this.get_stock_uom = get_stock_uom;
 		// looks up the conversion factor already set for a UOM in the Units of Measure list -
 		// there's no Conversion Factor field here, a UOM other than the stock one has to be
 		// added there first.
 		this.get_conversion_factor = get_conversion_factor;
+		// restricts the UOM field below to UOMs already in the Units of Measure list, instead of
+		// a free Link search across every UOM in the system - picking one that isn't there yet
+		// would just fail on save anyway (see save_row()'s "Add ... first" check).
+		this.get_uom_options = get_uom_options;
 		this.on_change = on_change || (() => {});
 		this.prices = [];
 	}
@@ -62,7 +66,13 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 	get_fields() {
 		return [
 			{ fieldname: "stock_uom", fieldtype: "Data", hidden: 1, default: this.get_stock_uom() },
-			{ label: __("UOM"), fieldname: "uom", fieldtype: "Link", options: "UOM", reqd: 1 },
+			{
+				label: __("UOM"),
+				fieldname: "uom",
+				fieldtype: "Select",
+				options: ["", ...this.get_uom_options()].join("\n"),
+				reqd: 1,
+			},
 			{
 				label: __("Price List"),
 				fieldname: "price_list",
@@ -103,7 +113,7 @@ frappe.kenz_erp.ItemPriceEditor = class ItemPriceEditor {
 	}
 
 	render_inline_form(idx) {
-		const row = idx === "new" ? { uom: this.get_stock_uom() } : this.prices[idx];
+		const row = idx === "new" ? {} : this.prices[idx];
 		new frappe.kenz_erp.InlineRowForm({
 			fields: this.get_fields(),
 			values: row,
