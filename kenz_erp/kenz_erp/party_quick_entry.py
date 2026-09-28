@@ -26,6 +26,28 @@ QUICK_ENTRY_CONTACT_FIELDS = {
 
 PARTY_DOCTYPES = ("Supplier", "Customer")
 
+# Fields kenz_erp's Quick Entry shows (see party_quick_entry.js) that used to only exist because
+# kenz_trading's own custom/customer.json put them there under its own module. Uninstalling
+# kenz_trading deletes every Custom Field/Property Setter still linked to its Module Def, which
+# would silently delete these from underneath Quick Entry - so kenz_erp now ships them itself
+# (see custom/customer.json) under its own module instead. That file alone isn't quite enough:
+# if kenz_trading is ever reinstalled, its own customize-form sync runs on every `bench migrate`
+# too and would claim "module" back to "Kenz Trading" for any field both apps define, re-coupling
+# it. Re-asserting kenz_erp's ownership here, in an after_migrate hook (which always runs last,
+# after every app's customize-form sync), keeps it decoupled no matter which app syncs last.
+RECLAIMED_CUSTOM_FIELDS = {
+	("Customer", "custom_customer_name_arabic"): "Kenz Erp",
+}
+
+
+def reclaim_custom_field_ownership():
+	for (dt, fieldname), module in RECLAIMED_CUSTOM_FIELDS.items():
+		name = f"{dt}-{fieldname}"
+		if frappe.db.exists("Custom Field", name) and frappe.db.get_value(
+			"Custom Field", name, "module"
+		) != module:
+			frappe.db.set_value("Custom Field", name, "module", module)
+
 
 def stash_quick_entry_fields(doc, method=None):
 	"""Supplier / Customer validate: keep the quick entry values for the Address and Contact that

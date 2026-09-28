@@ -9,14 +9,14 @@ $(() => {
 	const make_party_quick_entry_form = (party) =>
 		class extends frappe.ui.form.ContactAddressQuickEntryForm {
 			render_dialog() {
-				// Arabic name / VAT registration / commercial registration - shown only when
-				// another installed app (kenz_trading, ksa_compliance, ...) has actually put the
-				// field on this doctype. Reuses that real field directly - filling it in here
-				// saves straight onto it, no kenz_erp-owned duplicate or mapping needed. Some of
-				// these are already reqd/allow_in_quick_entry on their own (e.g. kenz_trading sets
-				// that up for Customer), which puts them in this.mandatory a second time wherever
-				// the base class placed them - drop that copy first so they only show up once, at
-				// the position chosen below.
+				// Arabic name / VAT registration - shown only when another installed app
+				// (kenz_trading, ksa_compliance, ...) has actually put the field on this doctype.
+				// Reuses that real field directly - filling it in here saves straight onto it, no
+				// kenz_erp-owned duplicate or mapping needed. Some of these are already
+				// reqd/allow_in_quick_entry on their own (e.g. kenz_trading sets that up for
+				// Customer), which puts them in this.mandatory a second time wherever the base
+				// class placed them - drop that copy first so they only show up once, at the
+				// position chosen below.
 				const target_fieldnames = [
 					`custom_${party}_name_arabic`,
 					"custom_vat_registration_number",
@@ -39,6 +39,7 @@ $(() => {
 				this.meta.fields.forEach((f) => (df[f.fieldname] = f));
 				const arabic_name_fieldname = `custom_${party}_name_arabic`;
 				const extra_fields = target_fieldnames.map((fieldname) => df[fieldname]).filter(Boolean);
+
 				if (extra_fields.length) {
 					const type_idx = this.mandatory.findIndex((f) => f.fieldname === `${party}_type`);
 					this.mandatory.splice(type_idx + 1, 0, ...extra_fields);
@@ -118,6 +119,23 @@ $(() => {
 						}
 						row.value = vat;
 					}
+				}
+
+				// same sync kenz_trading's Customer form does on the custom_cr_no field: mirror it
+				// into the "Additional IDs" CRN row (if that child table is present here too).
+				const cr_no = this.dialog.get_value("custom_cr_no");
+				if (cr_no && additional_ids_df) {
+					let row = this.dialog.doc.custom_additional_ids.find((r) => r.type_code === "CRN");
+					if (!row) {
+						row = frappe.model.add_child(
+							this.dialog.doc,
+							additional_ids_df.options,
+							"custom_additional_ids"
+						);
+						row.type_name = "Commercial Registration Number";
+						row.type_code = "CRN";
+					}
+					row.value = cr_no;
 				}
 
 				return super.insert();

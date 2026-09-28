@@ -85,6 +85,8 @@ app_include_js = ["/assets/kenz_erp/js/language.js", "kenz_erp.bundle.js"]
 # before_install = "kenz_erp.install.before_install"
 # after_install = "kenz_erp.install.after_install"
 
+after_migrate = "kenz_erp.kenz_erp.party_quick_entry.reclaim_custom_field_ownership"
+
 # Uninstallation
 # ------------
 
