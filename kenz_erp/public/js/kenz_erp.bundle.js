@@ -1,4 +1,5 @@
 import "./party_quick_entry";
+import "./customer";
 import "./item_inline_row";
 import "./item_price_editor";
 import "./item_barcode_editor";
