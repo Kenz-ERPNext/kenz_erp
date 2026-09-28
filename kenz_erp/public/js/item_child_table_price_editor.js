@@ -131,6 +131,7 @@ function mount_kenz_item_price_editor(frm, cdt, cdn) {
 			const row = uom_editor.uoms.find((u) => u.uom === uom);
 			return row && row.conversion_factor;
 		};
+		const get_uom_options = () => uom_editor.uoms.map((u) => u.uom).filter(Boolean);
 
 		const uom_editor = new frappe.kenz_erp.ItemUomEditor({
 			get_stock_uom: () => item_doc.stock_uom,
@@ -139,11 +140,13 @@ function mount_kenz_item_price_editor(frm, cdt, cdn) {
 		const price_editor = new frappe.kenz_erp.ItemPriceEditor({
 			get_stock_uom: () => item_doc.stock_uom,
 			get_conversion_factor,
+			get_uom_options,
 			on_change: () => save_kenz_item(item_doc, uom_editor, price_editor, barcode_editor),
 		});
 		const barcode_editor = new frappe.kenz_erp.ItemBarcodeEditor({
 			get_stock_uom: () => item_doc.stock_uom,
 			get_conversion_factor,
+			get_uom_options,
 			on_change: () => save_kenz_item(item_doc, uom_editor, price_editor, barcode_editor),
 		});
 		uom_editor.make(uom_section.body);
