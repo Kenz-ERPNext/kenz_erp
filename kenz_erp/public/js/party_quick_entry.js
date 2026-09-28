@@ -176,6 +176,7 @@ $(() => {
 							"Permanent",
 							"Other",
 						].join("\n"),
+						default: "Billing",
 					},
 					erpnext_fields.address_line1,
 					erpnext_fields.address_line2,
@@ -198,7 +199,7 @@ $(() => {
 					},
 					erpnext_fields.state,
 					erpnext_fields.pincode,
-					erpnext_fields.country,
+					{ ...erpnext_fields.country, default: frappe.sys_defaults.country },
 					column(),
 					{
 						label: __("Phone"),
