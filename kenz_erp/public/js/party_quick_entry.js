@@ -199,7 +199,12 @@ $(() => {
 					},
 					erpnext_fields.state,
 					erpnext_fields.pincode,
-					{ ...erpnext_fields.country_address, default: frappe.sys_defaults.country },
+					// ERPNext calls it "country" (older builds: "country_address"); a missing one must
+					// not leave a fieldtype-less {default} object behind - make_control crashes on it.
+					(erpnext_fields.country || erpnext_fields.country_address) && {
+						...(erpnext_fields.country || erpnext_fields.country_address),
+						default: frappe.sys_defaults.country,
+					},
 					column(),
 					{
 						label: __("Phone"),
